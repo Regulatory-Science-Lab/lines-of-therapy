@@ -1,0 +1,49 @@
+# Local data and outputs
+data/raw/
+data/processed/
+data/private/
+results/*
+!results/README.md
+outputs/
+artifacts/
+models/
+*.csv
+*.parquet
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.joblib
+
+# Local configuration
+config/local.yaml
+config/*.local.yaml
+.env
+.env.*
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/staging/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,1 @@
+"""Reproducible manuscript table generation."""

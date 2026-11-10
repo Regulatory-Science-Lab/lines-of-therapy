@@ -1,0 +1,71 @@
+paths:
+  dataset_1_csv: "data/private/dataset_1.csv"
+  dataset_2_csv: "data/private/dataset_2.csv"
+  output_dir: "outputs/local"
+
+analysis:
+  random_seed: 42
+  test_size: 0.20
+  cv_folds: 5
+  optuna_trials: 20
+  bootstrap_iterations: 1000
+  max_length: 512
+  early_stopping_patience: 3
+  num_labels: 3
+
+model:
+  hidden_size: 128
+  num_hidden_layers: 2
+  num_attention_heads: 4
+  intermediate_size: 256
+  learning_rate_min: 0.0001
+  learning_rate_max: 0.0005
+  batch_sizes: [16, 32]
+  epochs_min: 5
+  epochs_max: 10
+  weight_decay_min: 0.05
+  weight_decay_max: 0.10
+
+features:
+  patient_id: patient_id
+  tumour_type: tumour_type
+  drug_name: drug_name
+  common_drug_name: common_drug_name
+  drug_category: drug_category
+  protocol_code: protocol_code
+  detailed_drug_category: detailed_drug_category
+  administered_amount: administered_amount
+  administered_units: administered_units
+  route: route
+  ordered_date: ordered_date
+  administered_date: administered_date
+  progression_date: progression_date
+  last_followup_date: last_followup_date
+  death_date: death_date
+  line_start_date: line_start_date
+  line_number: line_number
+
+cyclic:
+  patient_id: patient_id
+  drug_name: drug_name
+  date: ordered_date
+  i_previous_records: 2
+  j_days: 30
+
+# Dataset-specific eligible tumour groups; the pooled "all" cohort is added separately.
+cohorts:
+  min_patients: 100
+  expected_tumour_counts:
+    dataset_1: 10
+    dataset_2: 4
+  tumour_names:
+    - Lung
+    - Breast
+    - Colorectal
+    - Pancreatic
+    - Gastric
+    - Prostate
+    - Endometrial
+    - Melanoma
+    - Renal Cell Carcinoma
+    - Head & Neck
