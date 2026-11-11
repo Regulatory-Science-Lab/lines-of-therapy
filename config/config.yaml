@@ -30,13 +30,8 @@ features:
   patient_id: patient_id
   tumour_type: tumour_type
   drug_name: drug_name
-  common_drug_name: common_drug_name
   drug_category: drug_category
   protocol_code: protocol_code
-  detailed_drug_category: detailed_drug_category
-  administered_amount: administered_amount
-  administered_units: administered_units
-  route: route
   ordered_date: ordered_date
   administered_date: administered_date
   progression_date: progression_date

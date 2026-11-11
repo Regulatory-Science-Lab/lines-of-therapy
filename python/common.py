@@ -13,10 +13,10 @@ SPECIAL_TOKENS = ["[UNK]", "[PAD]", "[CLS]", "[SEP]"]
 CLASS_TO_ID = {1: 0, 2: 1, 3: 2}
 ID_TO_CLASS = {0: "1", 1: "2", 2: "3+"}
 
+# Full analysis feature structure using generic variable names.
 FEATURE_COLUMNS = [
-    "tumour_type", "drug_name", "common_drug_name", "drug_category",
-    "detailed_drug_category", "protocol_code", "administered_amount", "administered_units",
-    "route", "ordered_date", "administered_date", "progression_date",
+    "tumour_type", "drug_name", "drug_category",
+    "protocol_code", "ordered_date", "administered_date", "progression_date",
     "last_followup_date", "death_date",
 ]
 
@@ -53,23 +53,14 @@ def _category_map(values: pd.Series) -> dict[str, int]:
 
 
 def fit_feature_encoders(train_df: pd.DataFrame) -> dict[str, Any]:
-    """Fit categorical mappings and dose quantile boundaries on the training partition."""
+    """Fit categorical mappings on the training partition."""
     maps = {}
     categorical = [
-        "tumour_type", "drug_name", "common_drug_name", "drug_category",
-        "detailed_drug_category", "protocol_code", "administered_units", "route",
+        "tumour_type", "drug_name", "drug_category", "protocol_code",
     ]
     for col in categorical:
         maps[col] = _category_map(train_df[col].astype("string")) if col in train_df else {}
-    amount = pd.to_numeric(train_df["administered_amount"], errors="coerce").dropna()
-    if amount.empty:
-        bins = []
-    else:
-        _, edges = pd.qcut(amount, q=5, retbins=True, duplicates="drop")
-        bins = sorted(set(float(x) for x in edges))
-        if len(bins) < 2:
-            bins = []
-    return {"category_maps": maps, "amount_bin_edges": bins}
+    return {"category_maps": maps}
 
 
 def _category_token(value: Any, prefix: str, mapping: dict[str, int]) -> str:
@@ -88,32 +79,21 @@ def _date_token(value: Any, prefix: str) -> str:
 def build_record_tokens(df: pd.DataFrame, encoders: dict[str, Any]) -> list[str]:
     """Create one composite token per medication record, using training-fitted mappings."""
     maps = encoders["category_maps"]
-    edges = encoders["amount_bin_edges"]
     out = []
     for row in df.itertuples(index=False):
         r = row._asdict()
-        amount = pd.to_numeric(pd.Series([r.get("administered_amount")]), errors="coerce").iloc[0]
-        if pd.isna(amount) or len(edges) < 2:
-            amount_token = "AMT_UNK"
-        else:
-            b = int(np.clip(np.digitize(float(amount), edges[1:-1], right=False), 0, max(len(edges)-2, 0)))
-            amount_token = f"AMT_{b}"
         parts = [
             _category_token(r.get("tumour_type"), "TUMOUR_", maps["tumour_type"]),
             _category_token(r.get("drug_name"), "DRUG_", maps["drug_name"]),
-            _category_token(r.get("common_drug_name"), "COMMONDRUG_", maps["common_drug_name"]),
             _category_token(r.get("drug_category"), "DRUGCAT_", maps["drug_category"]),
-            _category_token(r.get("detailed_drug_category"), "DETAILCAT_", maps["detailed_drug_category"]),
             _category_token(r.get("protocol_code"), "PROTOCOL_", maps["protocol_code"]),
-            amount_token,
-            _category_token(r.get("administered_units"), "UNIT_", maps["administered_units"]),
-            _category_token(r.get("route"), "ROUTE_", maps["route"]),
             _date_token(r.get("ordered_date"), "ORDER_"),
             _date_token(r.get("administered_date"), "ADMIN_"),
             _date_token(r.get("progression_date"), "PROG_"),
             _date_token(r.get("last_followup_date"), "LASTFU_"),
             _date_token(r.get("death_date"), "DEATH_"),
         ]
+        # A single whitespace-free composite token represents one medication record.
         out.append("__".join(parts))
     return out
 
@@ -132,6 +112,8 @@ def prepare_patient_sequences(
             work[col] = pd.to_datetime(work[col], errors="coerce")
     work["line_class"] = work["line_number"].map(normalize_line)
     sort_cols = [patient_col]
+    # Medication chronology, not benchmark line-start date (avoids using truth to order inputs).
+    # Use administration date when available, otherwise prescription/order date.
     if "administered_date" in work.columns and work["administered_date"].notna().any():
         work["_sequence_date"] = work["administered_date"].fillna(work["ordered_date"])
     else:
@@ -176,6 +158,7 @@ def encode_sequences(tokenizer, sequences, labels, max_length):
         add_special_tokens=False,
     )
     padded = [list(y[:max_length]) + [-100] * (max_length-len(y[:max_length])) for y in labels]
+    # For this WordLevel construction, each composite medication token is one tokenizer token.
     for i, y in enumerate(labels):
         n_nonpad = int(sum(v != tokenizer.pad_token_id for v in enc["input_ids"][i]))
         if n_nonpad != min(len(y), max_length):
@@ -199,6 +182,7 @@ def compute_metrics(y_true, y_pred, probabilities=None, include_auroc=False):
     if include_auroc:
         if probabilities is None:
             raise ValueError("Probabilities are required for AUROC.")
+        # Explicit three-class macro one-vs-rest AUROC; undefined if a class is absent.
         per_class = []
         for cls in range(3):
             binary = (np.asarray(y_true) == cls).astype(int)
